@@ -1,0 +1,18 @@
+DB_PATH = "AutoService.db"
+
+BG_COLOR = "#f0f4f8"
+CARD_BG = "#ffffff"
+HEADER_BG = "#1e3a5f"
+HEADER_FG = "#ffffff"
+BTN_COLOR = "#2563eb"
+BTN_HOVER = "#1d4ed8"
+TEXT_COLOR = "#1e293b"
+TEXT_MUTED = "#64748b"
+ACCENT = "#0ea5e9"
+SUCCESS = "#22c55e"
+DANGER = "#ef4444"
+FONT_FAMILY = "Segoe UI"
+FONT_SIZE = 10
+FONT_HEADER = 14
+PAD = 12
+RADIUS = 8
