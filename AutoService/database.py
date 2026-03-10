@@ -223,11 +223,14 @@ def get_request_by_id(request_id: int) -> Optional[Tuple]:
 
 
 def get_request_status_and_master(request_id: int) -> Optional[Tuple]:
-    """Получение статуса и механика заявки"""
+    """Получение статуса, механика и заказчика заявки"""
     conn = get_connection()
     cur = conn.cursor()
     try:
-        cur.execute("SELECT requestStatus, masterID FROM Requests WHERE requestID = ?", (request_id,))
+        cur.execute(
+            "SELECT requestStatus, masterID, clientID FROM Requests WHERE requestID = ?",
+            (request_id,),
+        )
         return cur.fetchone()
     except Exception as exc:
         print(f"[ERROR] Ошибка загрузки статуса: {exc}")
@@ -419,3 +422,54 @@ def backup_database(backup_dir: str = "backup") -> Optional[str]:
     except Exception as exc:
         print(f"[ERROR] Ошибка резервного копирования: {exc}")
         return None
+
+
+def create_user(fio: str, phone: str, login: str, password: str, user_type: str = "Заказчик") -> Optional[int]:
+    """Создание нового пользователя в системе"""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            INSERT INTO Users (fio, phone, login, password, type)
+            VALUES (?, ?, ?, ?, ?)
+            """,
+            (fio.strip(), phone.strip(), login.strip(), password.strip(), user_type.strip()),
+        )
+        conn.commit()
+        return cur.lastrowid
+    except sqlite3.IntegrityError as exc:
+        print(f"[ERROR] Ошибка создания пользователя (уникальность логина): {exc}")
+        return None
+    except Exception as exc:
+        print(f"[ERROR] Ошибка создания пользователя: {exc}")
+        return None
+    finally:
+        conn.close()
+
+
+def update_request_details(
+    request_id: int,
+    car_model: str,
+    problem_descryption: str,
+    repair_parts: Optional[str],
+) -> bool:
+    """Обновление основных полей заявки"""
+    conn = get_connection()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            """
+            UPDATE Requests
+            SET carModel = ?, problemDescryption = ?, repairParts = ?
+            WHERE requestID = ?
+            """,
+            (car_model.strip(), problem_descryption.strip(), (repair_parts or "").strip(), request_id),
+        )
+        conn.commit()
+        return cur.rowcount > 0
+    except Exception as exc:
+        print(f"[ERROR] Ошибка обновления заявки: {exc}")
+        return False
+    finally:
+        conn.close()
