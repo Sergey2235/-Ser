@@ -4,17 +4,41 @@ import tkinter as tk
 from tkinter import messagebox, ttk
 from typing import Optional, Callable
 from config import (
-    BG_COLOR, CARD_BG, HEADER_BG, HEADER_FG, BTN_COLOR,
-    TEXT_MUTED, SUCCESS, DANGER, PAD, FONT_FAMILY, FONT_TITLE,
-    QUALITY_SURVEY_URL, REQUEST_STATUSES, CAR_TYPES
+    BG_COLOR,
+    CARD_BG,
+    HEADER_BG,
+    HEADER_FG,
+    BTN_COLOR,
+    BTN_HOVER,
+    TEXT_MUTED,
+    SUCCESS,
+    DANGER,
+    PAD,
+    FONT_FAMILY,
+    FONT_HEADER,
+    FONT_TITLE,
+    QUALITY_SURVEY_URL,
+    REQUEST_STATUSES,
+    CAR_TYPES,
+    STATUS_COLORS,
 )
 from database import (
-    authenticate_user, get_all_requests, get_request_by_id,
-    get_request_status_and_master, get_users_by_type,
-    create_request, update_request_status, update_request_master,
-    add_comment, delete_request, get_comments_for_request,
-    get_completed_requests_count, get_average_repair_time,
-    backup_database
+    authenticate_user,
+    get_all_requests,
+    get_request_by_id,
+    get_request_status_and_master,
+    get_users_by_type,
+    create_request,
+    update_request_status,
+    update_request_master,
+    add_comment,
+    delete_request,
+    get_comments_for_request,
+    get_completed_requests_count,
+    get_average_repair_time,
+    backup_database,
+    create_user,
+    update_request_details,
 )
 from models import User
 
@@ -35,6 +59,43 @@ def _setup_styles() -> None:
     style.configure("Treeview", rowheight=28, font=(FONT_FAMILY, 10))
     style.configure("Treeview.Heading", font=(FONT_FAMILY, 10, "bold"))
     style.configure("TCombobox", padding=6)
+
+
+def _apply_button_hover(button: tk.Button, normal_bg: str, hover_bg: Optional[str] = None) -> None:
+    """Простое наведение для кнопок"""
+    if hover_bg is None:
+        hover_bg = BTN_HOVER
+
+    def on_enter(_event: tk.Event) -> None:
+        button.configure(bg=hover_bg)
+
+    def on_leave(_event: tk.Event) -> None:
+        button.configure(bg=normal_bg)
+
+    button.bind("<Enter>", on_enter)
+    button.bind("<Leave>", on_leave)
+
+
+def _add_placeholder(entry: tk.Entry, placeholder: str) -> None:
+    """Плейсхолдер для Entry (очищается при фокусе)"""
+    if entry.get().strip():
+        return
+
+    entry.insert(0, placeholder)
+    entry.configure(fg=TEXT_MUTED)
+
+    def on_focus_in(_event: tk.Event) -> None:
+        if entry.get() == placeholder:
+            entry.delete(0, tk.END)
+            entry.configure(fg="black")
+
+    def on_focus_out(_event: tk.Event) -> None:
+        if not entry.get().strip():
+            entry.insert(0, placeholder)
+            entry.configure(fg=TEXT_MUTED)
+
+    entry.bind("<FocusIn>", on_focus_in)
+    entry.bind("<FocusOut>", on_focus_out)
 
 
 class LoginForm:
@@ -69,9 +130,35 @@ class LoginForm:
                                        font=(FONT_FAMILY, 11), relief="solid", bd=1)
         self.entry_password.pack(pady=(2, PAD))
         
-        tk.Button(card, text="Войти", bg=BTN_COLOR, fg="white", 
-                  font=(FONT_FAMILY, 10), relief="flat", padx=24, pady=8, 
-                  cursor="hand2", command=self._login).pack(pady=PAD)
+        login_btn = tk.Button(
+            card,
+            text="Войти",
+            bg=BTN_COLOR,
+            fg="white",
+            font=(FONT_FAMILY, 10),
+            relief="flat",
+            padx=24,
+            pady=8,
+            cursor="hand2",
+            command=self._login,
+        )
+        login_btn.pack(pady=PAD)
+        _apply_button_hover(login_btn, BTN_COLOR)
+
+        reg_btn = tk.Button(
+            card,
+            text="Регистрация",
+            bg="white",
+            fg=BTN_COLOR,
+            font=(FONT_FAMILY, 9),
+            relief="solid",
+            bd=1,
+            padx=20,
+            pady=6,
+            cursor="hand2",
+            command=self._open_register,
+        )
+        reg_btn.pack(pady=(0, PAD))
         
         hint = tk.Frame(self.root, bg=BG_COLOR)
         hint.place(relx=0.5, rely=0.92, anchor="center")
@@ -103,6 +190,146 @@ class LoginForm:
         else:
             messagebox.showerror("Ошибка входа", "Неверный логин или пароль.")
 
+    def _open_register(self) -> None:
+        win = tk.Toplevel(self.root)
+        RegisterForm(win)
+
+
+class RegisterForm:
+    """Окно регистрации нового пользователя (заказчика)"""
+
+    def __init__(self, root: tk.Toplevel) -> None:
+        self.root = root
+        self.root.title("Регистрация пользователя")
+        self.root.geometry("460x420")
+        self.root.resizable(False, False)
+        self.root.config(bg=BG_COLOR)
+        _setup_styles()
+        self._build_ui()
+        self._center_window()
+
+    def _build_ui(self) -> None:
+        card = tk.Frame(self.root, bg=CARD_BG, padx=PAD * 2, pady=PAD * 2)
+        card.place(relx=0.5, rely=0.5, anchor="center")
+
+        tk.Label(
+            card,
+            text="Регистрация",
+            font=(FONT_FAMILY, FONT_HEADER, "bold"),
+            fg=HEADER_BG,
+            bg=CARD_BG,
+        ).pack(pady=(0, PAD * 2))
+
+        tk.Label(card, text="ФИО:", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w")
+        self.entry_fio = tk.Entry(card, width=36, font=(FONT_FAMILY, 10), relief="solid", bd=1)
+        self.entry_fio.pack(pady=(2, PAD))
+        _add_placeholder(self.entry_fio, "Иванов Иван Иванович")
+
+        tk.Label(card, text="Телефон:", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w")
+        self.entry_phone = tk.Entry(card, width=36, font=(FONT_FAMILY, 10), relief="solid", bd=1)
+        self.entry_phone.pack(pady=(2, PAD))
+        _add_placeholder(self.entry_phone, "89991234567")
+
+        tk.Label(card, text="Логин:", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w")
+        self.entry_login = tk.Entry(card, width=36, font=(FONT_FAMILY, 10), relief="solid", bd=1)
+        self.entry_login.pack(pady=(2, PAD))
+        _add_placeholder(self.entry_login, "login_new")
+
+        tk.Label(card, text="Пароль:", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w")
+        self.entry_password = tk.Entry(card, show="*", width=36, font=(FONT_FAMILY, 10), relief="solid", bd=1)
+        self.entry_password.pack(pady=(2, PAD))
+
+        tk.Label(card, text="Подтверждение пароля:", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w")
+        self.entry_password2 = tk.Entry(card, show="*", width=36, font=(FONT_FAMILY, 10), relief="solid", bd=1)
+        self.entry_password2.pack(pady=(2, PAD))
+
+        hint = tk.Label(
+            card,
+            text="Новый пользователь будет зарегистрирован как заказчик.",
+            font=(FONT_FAMILY, 8),
+            fg=TEXT_MUTED,
+            bg=CARD_BG,
+            wraplength=360,
+            justify="left",
+        )
+        hint.pack(pady=(0, PAD))
+
+        btn_frame = tk.Frame(card, bg=CARD_BG)
+        btn_frame.pack(pady=(PAD // 2, 0))
+
+        save_btn = tk.Button(
+            btn_frame,
+            text="Зарегистрироваться",
+            bg=SUCCESS,
+            fg="white",
+            font=(FONT_FAMILY, 10),
+            relief="flat",
+            padx=18,
+            pady=6,
+            cursor="hand2",
+            command=self._save,
+        )
+        save_btn.pack(side="left", padx=6)
+        _apply_button_hover(save_btn, SUCCESS, "#16a34a")
+
+        cancel_btn = tk.Button(
+            btn_frame,
+            text="Отмена",
+            bg="white",
+            fg=TEXT_MUTED,
+            font=(FONT_FAMILY, 10),
+            relief="solid",
+            bd=1,
+            padx=18,
+            pady=6,
+            cursor="hand2",
+            command=self.root.destroy,
+        )
+        cancel_btn.pack(side="left", padx=6)
+
+    def _center_window(self) -> None:
+        self.root.update_idletasks()
+        w, h = 460, 420
+        x = (self.root.winfo_screenwidth() // 2) - (w // 2)
+        y = (self.root.winfo_screenheight() // 2) - (h // 2)
+        self.root.geometry(f"{w}x{h}+{x}+{y}")
+
+    def _save(self) -> None:
+        fio = self.entry_fio.get().strip()
+        phone = self.entry_phone.get().strip()
+        login = self.entry_login.get().strip()
+        pwd1 = self.entry_password.get().strip()
+        pwd2 = self.entry_password2.get().strip()
+
+        # Убрать плейсхолдеры, если пользователь их не заменил
+        if fio == "Иванов Иван Иванович":
+            fio = ""
+        if phone == "89991234567":
+            phone = ""
+        if login == "login_new":
+            login = ""
+
+        if not fio or not phone or not login or not pwd1 or not pwd2:
+            messagebox.showwarning("Ошибка ввода", "Заполните все поля.")
+            return
+        if pwd1 != pwd2:
+            messagebox.showwarning("Ошибка ввода", "Пароли не совпадают.")
+            return
+
+        new_id = create_user(fio=fio, phone=phone, login=login, password=pwd1, user_type="Заказчик")
+        if new_id is None:
+            messagebox.showerror(
+                "Ошибка регистрации",
+                "Не удалось создать пользователя.\nВозможно, логин уже занят. Попробуйте другой логин.",
+            )
+            return
+
+        messagebox.showinfo(
+            "Успех",
+            "Пользователь успешно зарегистрирован.\nТеперь вы можете войти, используя указанные логин и пароль.",
+        )
+        self.root.destroy()
+
 
 class MainForm:
     """Главное меню приложения"""
@@ -110,7 +337,7 @@ class MainForm:
     def __init__(self, root: tk.Tk, user: User) -> None:
         self.root = root
         self.user = user
-        self.root.title(f"Личный кабинет — {user.user_type}")
+        self.root.title(f"АвтоТранс — личный кабинет ({user.user_type})")
         self.root.geometry("860x620")
         self.root.resizable(True, True)
         self.root.config(bg=BG_COLOR)
@@ -123,57 +350,175 @@ class MainForm:
         header.pack(fill="x")
         tk.Label(header, text=f"🚗 АвтоТранс · {self.user.fio}", 
                  fg=HEADER_FG, bg=HEADER_BG, font=(FONT_FAMILY, 12)).pack(side="left", padx=PAD * 2, pady=14)
-        tk.Button(header, text="Выход", bg=DANGER, fg="white", 
-                  font=(FONT_FAMILY, 10), relief="flat", padx=16, pady=6, 
-                  cursor="hand2", command=self._logout).pack(side="right", padx=PAD * 2, pady=10)
+        logout_btn = tk.Button(
+            header,
+            text="Выход",
+            bg=DANGER,
+            fg="white",
+            font=(FONT_FAMILY, 10),
+            relief="flat",
+            padx=16,
+            pady=6,
+            cursor="hand2",
+            command=self._logout,
+        )
+        logout_btn.pack(side="right", padx=PAD * 2, pady=10)
+        _apply_button_hover(logout_btn, DANGER, "#dc2626")
 
     def _build_content(self) -> None:
         content = tk.Frame(self.root, bg=BG_COLOR, padx=PAD * 3, pady=PAD * 3)
         content.pack(fill="both", expand=True)
         
-        tk.Label(content, text=f"Добро пожаловать, {self.user.fio}!", 
-                 font=(FONT_FAMILY, 16), bg=BG_COLOR).pack(pady=(PAD, PAD * 2))
-        tk.Label(content, text=f"Роль: {self.user.user_type}", 
-                 font=(FONT_FAMILY, 11), fg=TEXT_MUTED, bg=BG_COLOR).pack(pady=(0, PAD))
+        # "Hero"-карточка с приветствием и ролью
+        hero_outer = tk.Frame(content, bg=BG_COLOR)
+        hero_outer.pack(fill="x", pady=(0, PAD * 2))
+        hero = tk.Frame(hero_outer, bg=CARD_BG, padx=PAD * 2, pady=PAD * 2)
+        hero.pack(fill="x")
         
-        # Статистика для административных ролей
+        tk.Label(
+            hero,
+            text=f"Добро пожаловать, {self.user.fio}!",
+            font=(FONT_FAMILY, 18, "bold"),
+            bg=CARD_BG,
+        ).pack(anchor="w")
+        tk.Label(
+            hero,
+            text=f"Роль в системе: {self.user.user_type}",
+            font=(FONT_FAMILY, 11),
+            fg=TEXT_MUTED,
+            bg=CARD_BG,
+        ).pack(anchor="w", pady=(4, 0))
+        
+        # Основная зона: слева меню, справа краткая сводка
+        body = tk.Frame(content, bg=BG_COLOR)
+        body.pack(fill="both", expand=True)
+        
+        # Левая колонка — меню действий
+        menu_card = tk.Frame(body, bg=CARD_BG, padx=PAD * 2, pady=PAD * 2)
+        menu_card.pack(side="left", fill="y", padx=(0, PAD * 2))
+        
+        tk.Label(
+            menu_card,
+            text="Навигация",
+            font=(FONT_FAMILY, 12, "bold"),
+            bg=CARD_BG,
+        ).pack(anchor="w", pady=(0, PAD))
+        
+        if self.user.user_type in ("Оператор", "Менеджер", "Менеджер по качеству"):
+            btn_requests = tk.Button(
+                menu_card,
+                text="📋 Заявки",
+                bg=BTN_COLOR,
+                fg="white",
+                font=(FONT_FAMILY, 11),
+                relief="flat",
+                padx=20,
+                pady=10,
+                cursor="hand2",
+                command=self._open_requests,
+            )
+            btn_requests.pack(fill="x", pady=4)
+            _apply_button_hover(btn_requests, BTN_COLOR)
+        
+            btn_stats = tk.Button(
+                menu_card,
+                text="📊 Статистика",
+                bg=BTN_COLOR,
+                fg="white",
+                font=(FONT_FAMILY, 11),
+                relief="flat",
+                padx=20,
+                pady=10,
+                cursor="hand2",
+                command=self._open_statistics,
+            )
+            btn_stats.pack(fill="x", pady=4)
+            _apply_button_hover(btn_stats, BTN_COLOR)
+        
+            # Резервное копирование (Модуль 2)
+            btn_backup = tk.Button(
+                menu_card,
+                text="💾 Резервная копия БД",
+                bg=SUCCESS,
+                fg="white",
+                font=(FONT_FAMILY, 11),
+                relief="flat",
+                padx=20,
+                pady=10,
+                cursor="hand2",
+                command=self._backup_db,
+            )
+            btn_backup.pack(fill="x", pady=(8, 0))
+            _apply_button_hover(btn_backup, SUCCESS, "#16a34a")
+        elif self.user.user_type in ("Автомеханик", "Заказчик"):
+            btn_my_reqs = tk.Button(
+                menu_card,
+                text="📋 Мои заявки",
+                bg=BTN_COLOR,
+                fg="white",
+                font=(FONT_FAMILY, 11),
+                relief="flat",
+                padx=20,
+                pady=10,
+                cursor="hand2",
+                command=self._open_requests,
+            )
+            btn_my_reqs.pack(fill="x", pady=4)
+            _apply_button_hover(btn_my_reqs, BTN_COLOR)
+        
+        # Правая колонка — краткая статистика по заявкам (для служебных ролей)
+        summary_card = tk.Frame(body, bg=CARD_BG, padx=PAD * 2, pady=PAD * 2)
+        summary_card.pack(side="left", fill="both", expand=True)
+        
+        tk.Label(
+            summary_card,
+            text="Краткая сводка",
+            font=(FONT_FAMILY, 12, "bold"),
+            bg=CARD_BG,
+        ).pack(anchor="w", pady=(0, PAD))
+        
         if self.user.user_type in ("Оператор", "Менеджер", "Менеджер по качеству"):
             all_reqs = get_all_requests()
             total_r = len(all_reqs)
             active_r = sum(1 for r in all_reqs if r.request_status != "Готова к выдаче")
-            stats_frame = tk.Frame(content, bg=CARD_BG, padx=PAD, pady=PAD)
-            stats_frame.pack(fill="x", pady=(0, PAD))
-            tk.Label(stats_frame, text=f"📋 Заявок всего: {total_r} · В работе: {active_r}", 
-                     font=(FONT_FAMILY, 11), bg=CARD_BG).pack(anchor="w")
-        
-        # Кнопки меню в зависимости от роли
-        card = tk.Frame(content, bg=CARD_BG, padx=PAD * 2, pady=PAD * 2)
-        card.pack(pady=PAD)
-        
-        if self.user.user_type in ("Оператор", "Менеджер", "Менеджер по качеству"):
-            tk.Button(card, text="📋 Заявки", bg=BTN_COLOR, fg="white", 
-                      font=(FONT_FAMILY, 11), relief="flat", padx=20, pady=12, 
-                      cursor="hand2", command=self._open_requests).pack(pady=6)
-            tk.Button(card, text="📊 Статистика", bg=BTN_COLOR, fg="white", 
-                      font=(FONT_FAMILY, 11), relief="flat", padx=20, pady=12, 
-                      cursor="hand2", command=self._open_statistics).pack(pady=6)
-            # Резервное копирование (Модуль 2)
-            tk.Button(card, text="💾 Резервная копия", bg=SUCCESS, fg="white", 
-                      font=(FONT_FAMILY, 11), relief="flat", padx=20, pady=12, 
-                      cursor="hand2", command=self._backup_db).pack(pady=6)
-        elif self.user.user_type == "Автомеханик":
-            tk.Button(card, text="📋 Мои заявки", bg=BTN_COLOR, fg="white", 
-                      font=(FONT_FAMILY, 11), relief="flat", padx=20, pady=12, 
-                      cursor="hand2", command=self._open_requests).pack(pady=6)
-        elif self.user.user_type == "Заказчик":
-            tk.Button(card, text="📋 Мои заявки", bg=BTN_COLOR, fg="white", 
-                      font=(FONT_FAMILY, 11), relief="flat", padx=20, pady=12, 
-                      cursor="hand2", command=self._open_requests).pack(pady=6)
+            completed_r = sum(1 for r in all_reqs if r.request_status == "Готова к выдаче")
+            
+            tk.Label(
+                summary_card,
+                text=f"Всего заявок: {total_r}",
+                font=(FONT_FAMILY, 11),
+                bg=CARD_BG,
+            ).pack(anchor="w", pady=2)
+            tk.Label(
+                summary_card,
+                text=f"Активные в работе: {active_r}",
+                font=(FONT_FAMILY, 11),
+                bg=CARD_BG,
+            ).pack(anchor="w", pady=2)
+            tk.Label(
+                summary_card,
+                text=f"Готовы к выдаче: {completed_r}",
+                font=(FONT_FAMILY, 11),
+                bg=CARD_BG,
+            ).pack(anchor="w", pady=2)
+        else:
+            tk.Label(
+                summary_card,
+                text="Здесь будут отображаться основные показатели по вашим заявкам.",
+                font=(FONT_FAMILY, 10),
+                fg=TEXT_MUTED,
+                bg=CARD_BG,
+                wraplength=360,
+                justify="left",
+            ).pack(anchor="w", pady=2)
         
         # Информирование о роли Менеджер по качеству (Модуль 3)
         if self.user.user_type == "Менеджер по качеству":
-            messagebox.showinfo("Информация", "Вы вошли как Менеджер по качеству.\n"
-                                              "Вы можете продлевать срок заявки и привлекать механиков.")
+            messagebox.showinfo(
+                "Информация",
+                "Вы вошли как Менеджер по качеству.\n"
+                "Вы можете контролировать качество, анализировать статистику и взаимодействовать с механиками.",
+            )
 
     def _open_requests(self) -> None:
         RequestsForm(tk.Toplevel(self.root), self.user)
@@ -216,14 +561,33 @@ class RequestsForm:
         tk.Label(header, text="📋 Заявки", fg=HEADER_FG, 
                  bg=HEADER_BG, font=(FONT_FAMILY, 12)).pack(side="left", padx=PAD * 2, pady=12)
         
-        if self.user.user_type in ("Оператор", "Менеджер", "Менеджер по качеству"):
-            tk.Button(header, text="➕ Добавить заявку", bg=SUCCESS, fg="white", 
-                      font=(FONT_FAMILY, 10), relief="flat", padx=12, pady=6, 
-                      cursor="hand2", command=self._open_new_request).pack(side="right", padx=6, pady=10)
+        add_btn = tk.Button(
+            header,
+            text="➕ Добавить заявку",
+            bg=SUCCESS,
+            fg="white",
+            font=(FONT_FAMILY, 10),
+            relief="flat",
+            padx=12,
+            pady=6,
+            cursor="hand2",
+            command=self._open_new_request,
+        )
+        add_btn.pack(side="right", padx=6, pady=10)
+        _apply_button_hover(add_btn, SUCCESS, "#16a34a")
         
-        tk.Button(header, text="Назад", fg=HEADER_FG, bg=HEADER_BG, 
-                  font=(FONT_FAMILY, 10), relief="flat", cursor="hand2", 
-                  command=self.root.destroy).pack(side="right", padx=PAD, pady=10)
+        back_btn = tk.Button(
+            header,
+            text="Назад",
+            fg=HEADER_FG,
+            bg=HEADER_BG,
+            font=(FONT_FAMILY, 10),
+            relief="flat",
+            cursor="hand2",
+            command=self.root.destroy,
+        )
+        back_btn.pack(side="right", padx=PAD, pady=10)
+        _apply_button_hover(back_btn, HEADER_BG, "#0f172a")
 
     def _build_filters(self) -> None:
         filter_frame = tk.Frame(self.root, bg=CARD_BG, padx=PAD, pady=PAD)
@@ -256,10 +620,29 @@ class RequestsForm:
         columns = ("ID", "Дата", "Тип", "Модель", "Проблема", "Статус", "Клиент", "Механик")
         self.tree = ttk.Treeview(tree_frame, columns=columns, show="headings", height=18)
         
-        for col in columns:
-            self.tree.heading(col, text=col)
-            self.tree.column(col, width=118)
+        self.tree.heading("ID", text="ID")
+        self.tree.heading("Дата", text="Дата")
+        self.tree.heading("Тип", text="Тип")
+        self.tree.heading("Модель", text="Модель")
+        self.tree.heading("Проблема", text="Проблема")
+        self.tree.heading("Статус", text="Статус")
+        self.tree.heading("Клиент", text="Клиент")
+        self.tree.heading("Механик", text="Механик")
+
+        self.tree.column("ID", width=60, anchor="center")
+        self.tree.column("Дата", width=100, anchor="center")
+        self.tree.column("Тип", width=100, anchor="center")
+        self.tree.column("Модель", width=160, anchor="w")
+        self.tree.column("Проблема", width=260, anchor="w")
+        self.tree.column("Статус", width=140, anchor="center")
+        self.tree.column("Клиент", width=160, anchor="w")
+        self.tree.column("Механик", width=160, anchor="w")
         
+        # Цветовые теги по статусу заявки
+        self.tree.tag_configure("status_new", background=STATUS_COLORS.get("Новая заявка", ""))
+        self.tree.tag_configure("status_in_progress", background=STATUS_COLORS.get("В процессе ремонта", ""))
+        self.tree.tag_configure("status_done", background=STATUS_COLORS.get("Готова к выдаче", ""))
+
         self.tree.pack(side="left", fill="both", expand=True)
         scroll = ttk.Scrollbar(tree_frame, orient=tk.VERTICAL, command=self.tree.yview)
         self.tree.configure(yscrollcommand=scroll.set)
@@ -297,10 +680,31 @@ class RequestsForm:
                     continue
             
             visible += 1
-            self.tree.insert("", tk.END, values=(
-                req.request_id, req.start_date, req.car_type, req.car_model,
-                req.problem_descryption, req.request_status, req.client_name, req.master_name
-            ))
+
+            if req.request_status == "Новая заявка":
+                tag = "status_new"
+            elif req.request_status == "В процессе ремонта":
+                tag = "status_in_progress"
+            elif req.request_status == "Готова к выдаче":
+                tag = "status_done"
+            else:
+                tag = ""
+
+            self.tree.insert(
+                "",
+                tk.END,
+                values=(
+                    req.request_id,
+                    req.start_date,
+                    req.car_type,
+                    req.car_model,
+                    req.problem_descryption,
+                    req.request_status,
+                    req.client_name,
+                    req.master_name,
+                ),
+                tags=(tag,),
+            )
         
         self.summary_label.config(text=f"Показано: {visible} из {total}")
         
@@ -314,7 +718,7 @@ class RequestsForm:
         self._load_requests()
 
     def _open_new_request(self) -> None:
-        NewRequestForm(tk.Toplevel(self.root), self._load_requests)
+        NewRequestForm(tk.Toplevel(self.root), self.user, self._load_requests)
 
     def _on_double_click(self, event) -> None:
         sel = self.tree.selection()
@@ -328,8 +732,9 @@ class RequestsForm:
 class NewRequestForm:
     """Форма создания новой заявки"""
     
-    def __init__(self, root: tk.Toplevel, on_success: Callable) -> None:
+    def __init__(self, root: tk.Toplevel, current_user: User, on_success: Callable) -> None:
         self.root = root
+        self.current_user = current_user
         self.on_success = on_success
         self.root.title("Новая заявка")
         self.root.geometry("500x460")
@@ -350,6 +755,15 @@ class NewRequestForm:
         tk.Label(card, text="Клиент (заказчик):", font=(FONT_FAMILY, 10), bg=CARD_BG).grid(row=0, column=0, sticky="w", pady=6)
         self.client_ids = [row[0] for row in clients]
         self.client_names = [row[1] for row in clients]
+
+        # Если текущий пользователь сам является заказчиком,
+        # показываем в списке только его, чтобы он создавал заявки от своего имени.
+        if self.current_user.user_type == "Заказчик":
+            for cid, cname in zip(self.client_ids, self.client_names):
+                if cid == self.current_user.user_id:
+                    self.client_ids = [cid]
+                    self.client_names = [cname]
+                    break
         self.combo_client = ttk.Combobox(card, values=self.client_names, width=40, state="readonly")
         self.combo_client.grid(row=0, column=1, pady=6, padx=PAD)
         if self.client_names:
@@ -372,12 +786,23 @@ class NewRequestForm:
         self.entry_problem.grid(row=3, column=1, pady=6, padx=PAD)
         
         # Механик
-        tk.Label(card, text="Механик (необяз.):", font=(FONT_FAMILY, 10), bg=CARD_BG).grid(row=4, column=0, sticky="w", pady=6)
-        self.master_ids = [None] + [row[0] for row in mechanics]
-        self.master_names = ["— Не назначен"] + [row[1] for row in mechanics]
-        self.combo_master = ttk.Combobox(card, values=self.master_names, width=38, state="readonly")
-        self.combo_master.grid(row=4, column=1, pady=6, padx=PAD)
-        self.combo_master.current(0)
+        # Для менеджера/оператора механик выбирается из списка,
+        # для заказчика выбор механика при создании заявки не отображается.
+        self.master_ids = [None]
+        self.master_names = ["— Не назначен"]
+        self.combo_master = None
+        if self.current_user.user_type in ("Оператор", "Менеджер", "Менеджер по качеству"):
+            tk.Label(card, text="Механик (необяз.):", font=(FONT_FAMILY, 10), bg=CARD_BG).grid(
+                row=4,
+                column=0,
+                sticky="w",
+                pady=6,
+            )
+            self.master_ids = [None] + [row[0] for row in mechanics]
+            self.master_names = ["— Не назначен"] + [row[1] for row in mechanics]
+            self.combo_master = ttk.Combobox(card, values=self.master_names, width=38, state="readonly")
+            self.combo_master.grid(row=4, column=1, pady=6, padx=PAD)
+            self.combo_master.current(0)
         
         # Кнопки
         btn_frame = tk.Frame(self.root, bg=BG_COLOR)
@@ -414,8 +839,10 @@ class NewRequestForm:
             messagebox.showwarning("Ошибка ввода", "Введите описание проблемы.")
             return
         
-        master_idx = self.combo_master.current()
-        master_id = self.master_ids[master_idx] if 0 <= master_idx < len(self.master_ids) else None
+        master_id = None
+        if self.combo_master is not None:
+            master_idx = self.combo_master.current()
+            master_id = self.master_ids[master_idx] if 0 <= master_idx < len(self.master_ids) else None
         
         from datetime import datetime
         start_date = datetime.now().strftime("%Y-%m-%d")
@@ -469,14 +896,56 @@ class RequestDetailsForm:
         raw = get_request_status_and_master(self.request_id)
         self.current_status = raw[0] if raw else "Новая заявка"
         self.current_master_id = raw[1] if raw else None
+        self.current_client_id = raw[2] if raw else None
         
         if row:
-            start_date, car_type, car_model, problem, status, completion_date, repair_parts, master_fio, client_fio = row
+            (
+                start_date,
+                car_type,
+                car_model,
+                problem,
+                status,
+                completion_date,
+                repair_parts,
+                master_fio,
+                client_fio,
+            ) = row
             
             tk.Label(card, text=f"Дата приёма: {start_date}", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w", pady=4)
             tk.Label(card, text=f"Тип авто: {car_type}", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w", pady=4)
-            tk.Label(card, text=f"Модель: {car_model}", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w", pady=4)
-            tk.Label(card, text=f"Описание проблемы: {problem}", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w", pady=4)
+
+            # Редактируемая модель авто (по умолчанию заблокирована, включается кнопкой "Редактировать")
+            row_model = tk.Frame(card, bg=CARD_BG)
+            row_model.pack(fill="x", pady=2)
+            tk.Label(row_model, text="Модель:", font=(FONT_FAMILY, 10), bg=CARD_BG, width=16, anchor="w").pack(
+                side="left"
+            )
+            self.entry_car_model = tk.Entry(
+                row_model,
+                width=60,
+                font=(FONT_FAMILY, 10),
+                relief="solid",
+                bd=1,
+            )
+            self.entry_car_model.insert(0, car_model)
+            self.entry_car_model.pack(side="left", padx=(0, 4))
+            self.entry_car_model.configure(state="disabled")
+
+            # Редактируемое описание проблемы
+            tk.Label(card, text="Описание проблемы:", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w", pady=(4, 2))
+            self.text_problem = tk.Text(
+                card,
+                width=74,
+                height=4,
+                wrap="word",
+                font=(FONT_FAMILY, 10),
+                relief="solid",
+                bd=1,
+            )
+            self.text_problem.insert("1.0", problem)
+            self.text_problem.pack(pady=(0, 4))
+            self.text_problem.configure(state="disabled")
+
             tk.Label(card, text=f"Статус: {status}", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w", pady=4)
             tk.Label(card, text=f"Клиент: {client_fio or '—'}", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w", pady=4)
             tk.Label(card, text=f"Механик: {master_fio or 'Не назначен'}", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w", pady=4)
@@ -492,9 +961,23 @@ class RequestDetailsForm:
                 except ValueError:
                     pass
             
+            tk.Label(card, text="Запчасти (при наличии):", font=(FONT_FAMILY, 10), bg=CARD_BG).pack(anchor="w", pady=(4, 2))
+            self.entry_parts = tk.Entry(
+                card,
+                width=74,
+                font=(FONT_FAMILY, 10),
+                relief="solid",
+                bd=1,
+            )
             if repair_parts and repair_parts.strip():
-                tk.Label(card, text=f"Запчасти: {repair_parts.strip()}", 
-                         font=(FONT_FAMILY, 10), bg=CARD_BG, wraplength=720, justify="left").pack(anchor="w", pady=4)
+                self.entry_parts.insert(0, repair_parts.strip())
+            self.entry_parts.pack(pady=(0, 4))
+            self.entry_parts.configure(state="disabled")
+
+            # Сохранить оригинальные значения (для "Отмена")
+            self._orig_car_model = car_model
+            self._orig_problem = problem
+            self._orig_parts = (repair_parts or "")
 
     def _build_actions(self) -> None:
         """Панель действий в зависимости от роли"""
@@ -504,8 +987,15 @@ class RequestDetailsForm:
         can_edit = self.user.user_type in ("Оператор", "Менеджер", "Менеджер по качеству") or (
             self.user.user_type == "Автомеханик" and self.current_master_id == self.user.user_id
         )
+        can_edit_client = (
+            self.user.user_type == "Заказчик"
+            and self.current_client_id == self.user.user_id
+            and self.current_status == "Новая заявка"
+        )
         can_edit_mech = self.user.user_type in ("Оператор", "Менеджер", "Менеджер по качеству")
-        can_comment = can_edit or (self.user.user_type == "Автомеханик" and self.current_master_id == self.user.user_id)
+        can_comment = can_edit or can_edit_client or (
+            self.user.user_type == "Автомеханик" and self.current_master_id == self.user.user_id
+        )
         can_delete = self.user.user_type in ("Оператор", "Менеджер")
         
         if can_edit or can_edit_mech or can_comment or can_delete:
@@ -515,8 +1005,25 @@ class RequestDetailsForm:
             
             row2 = tk.Frame(act, bg=CARD_BG)
             row2.pack(fill="x")
+
+            # Отдельная кнопка "Редактировать" (включает поля заявки)
+            if can_edit or can_edit_client:
+                self.btn_edit_details = tk.Button(
+                    row2,
+                    text="✏️ Редактировать",
+                    bg="white",
+                    fg=BTN_COLOR,
+                    font=(FONT_FAMILY, 9),
+                    relief="solid",
+                    bd=1,
+                    padx=10,
+                    pady=4,
+                    cursor="hand2",
+                    command=self._enable_edit_mode,
+                )
+                self.btn_edit_details.pack(side="left", padx=(0, 8))
             
-            if can_edit:
+            if can_edit or can_edit_client:
                 tk.Label(row2, text="Статус:", font=(FONT_FAMILY, 9), bg=CARD_BG).pack(side="left")
                 self.combo_status = ttk.Combobox(row2, values=REQUEST_STATUSES, width=20, state="readonly")
                 self.combo_status.set(self.current_status)
@@ -524,6 +1031,38 @@ class RequestDetailsForm:
                 tk.Button(row2, text="Сохранить статус", bg=BTN_COLOR, fg="white", 
                           font=(FONT_FAMILY, 9), relief="flat", padx=10, pady=4, 
                           cursor="hand2", command=self._save_status).pack(side="left", padx=8)
+
+                # Кнопка сохранения текстовых полей заявки
+                self.btn_save_details = tk.Button(
+                    row2,
+                    text="Сохранить изменения заявки",
+                    bg=SUCCESS,
+                    fg="white",
+                    font=(FONT_FAMILY, 9),
+                    relief="flat",
+                    padx=10,
+                    pady=4,
+                    cursor="hand2",
+                    command=self._save_details,
+                )
+                self.btn_save_details.pack(side="left", padx=8)
+                self.btn_save_details.configure(state="disabled")
+
+                self.btn_cancel_details = tk.Button(
+                    row2,
+                    text="Отмена",
+                    bg="white",
+                    fg=TEXT_MUTED,
+                    font=(FONT_FAMILY, 9),
+                    relief="solid",
+                    bd=1,
+                    padx=10,
+                    pady=4,
+                    cursor="hand2",
+                    command=self._cancel_edit_mode,
+                )
+                self.btn_cancel_details.pack(side="left", padx=8)
+                self.btn_cancel_details.configure(state="disabled")
             
             if can_edit_mech:
                 mechanics = get_users_by_type("Автомеханик")
@@ -597,6 +1136,75 @@ class RequestDetailsForm:
             messagebox.showinfo("Успех", "Статус обновлён.")
         else:
             messagebox.showerror("Ошибка", "Не удалось обновить статус.")
+
+    def _save_details(self) -> None:
+        """Сохранение изменённых полей заявки (модель, описание, запчасти)"""
+        car_model = self.entry_car_model.get().strip() if hasattr(self, "entry_car_model") else ""
+        problem = self.text_problem.get("1.0", tk.END).strip() if hasattr(self, "text_problem") else ""
+        parts = self.entry_parts.get().strip() if hasattr(self, "entry_parts") else ""
+
+        if not car_model:
+            messagebox.showwarning("Ошибка ввода", "Поле 'Модель' не может быть пустым.")
+            return
+        if not problem:
+            messagebox.showwarning("Ошибка ввода", "Поле 'Описание проблемы' не может быть пустым.")
+            return
+
+        if update_request_details(self.request_id, car_model, problem, parts):
+            messagebox.showinfo("Успех", "Данные заявки обновлены.")
+            # Зафиксировать новые значения как оригинальные и выключить режим редактирования
+            self._orig_car_model = car_model
+            self._orig_problem = problem
+            self._orig_parts = parts
+            self._disable_edit_mode()
+        else:
+            messagebox.showerror("Ошибка", "Не удалось обновить заявку.")
+
+    def _enable_edit_mode(self) -> None:
+        if hasattr(self, "entry_car_model"):
+            self.entry_car_model.configure(state="normal")
+        if hasattr(self, "text_problem"):
+            self.text_problem.configure(state="normal")
+        if hasattr(self, "entry_parts"):
+            self.entry_parts.configure(state="normal")
+        if hasattr(self, "btn_save_details"):
+            self.btn_save_details.configure(state="normal")
+        if hasattr(self, "btn_cancel_details"):
+            self.btn_cancel_details.configure(state="normal")
+
+    def _disable_edit_mode(self) -> None:
+        if hasattr(self, "entry_car_model"):
+            self.entry_car_model.configure(state="disabled")
+        if hasattr(self, "text_problem"):
+            self.text_problem.configure(state="disabled")
+        if hasattr(self, "entry_parts"):
+            self.entry_parts.configure(state="disabled")
+        if hasattr(self, "btn_save_details"):
+            self.btn_save_details.configure(state="disabled")
+        if hasattr(self, "btn_cancel_details"):
+            self.btn_cancel_details.configure(state="disabled")
+
+    def _cancel_edit_mode(self) -> None:
+        # Вернуть исходные значения
+        if hasattr(self, "entry_car_model"):
+            self.entry_car_model.configure(state="normal")
+            self.entry_car_model.delete(0, tk.END)
+            self.entry_car_model.insert(0, getattr(self, "_orig_car_model", ""))
+            self.entry_car_model.configure(state="disabled")
+        if hasattr(self, "text_problem"):
+            self.text_problem.configure(state="normal")
+            self.text_problem.delete("1.0", tk.END)
+            self.text_problem.insert("1.0", getattr(self, "_orig_problem", ""))
+            self.text_problem.configure(state="disabled")
+        if hasattr(self, "entry_parts"):
+            self.entry_parts.configure(state="normal")
+            self.entry_parts.delete(0, tk.END)
+            self.entry_parts.insert(0, getattr(self, "_orig_parts", ""))
+            self.entry_parts.configure(state="disabled")
+        if hasattr(self, "btn_save_details"):
+            self.btn_save_details.configure(state="disabled")
+        if hasattr(self, "btn_cancel_details"):
+            self.btn_cancel_details.configure(state="disabled")
 
     def _assign_master(self) -> None:
         idx = self.combo_master.current()
